@@ -223,7 +223,7 @@ function botAct(room, b) {
 
   if (isKemps(hand)) {
     // Signal the partner, and repeat now and then in case they missed it.
-    if (!b.signalledAt || now - b.signalledAt > 5000) {
+    if (!b.signalledAt || now - b.signalledAt > 7000) {
       b.signalledAt = now;
       sendEmote(room, b.seat, room.signals[team]);
     }
@@ -236,6 +236,9 @@ function botAct(room, b) {
     const fakes = EMOTES.filter((e) => e !== room.signals[team]);
     sendEmote(room, b.seat, fakes[crypto.randomInt(fakes.length)]);
   }
+
+  // Like a person, a bot often just doesn't spot the useful card in time.
+  if (Math.random() < 0.35) return;
 
   let best = null;
   const current = handScore(hand);
@@ -268,7 +271,9 @@ function botsHearEmote(room, seat, emote) {
     if (b.seat === seat) continue;
     const team = teamOf(room, b.seat);
     if (seat === partnerOf(room, b.seat) && emote === room.signals[team]) {
-      botLater(room, rand(600, 1600), () => actions.kemps(room, b));
+      // Sometimes misses the signal; the partner will send it again.
+      if (Math.random() < 0.25) continue;
+      botLater(room, rand(1500, 3500), () => actions.kemps(room, b));
     } else if (senderTeam !== team) {
       const known = room.knownSignals[senderTeam].has(emote);
       if (Math.random() < (known ? 0.6 : 0.03)) {
@@ -284,7 +289,7 @@ setInterval(() => {
     if (room.phase !== 'playing') continue;
     for (const b of bots(room)) {
       if (now < (b.nextAct || 0)) continue;
-      b.nextAct = now + rand(1000, 2400);
+      b.nextAct = now + rand(2000, 4000);
       try { botAct(room, b); } catch (err) { if (!(err instanceof GameError)) console.error(err); }
     }
   }
@@ -516,7 +521,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/create') {
       const { name } = await readBody(req);
       const room = {
-        code: roomCode(), hostId: null, size: 4, target: 5, players: new Map(),
+        code: roomCode(), hostId: null, size: 4, target: 10, players: new Map(),
         seats: Array(4).fill(null), signals: Array(2).fill(null), phase: 'lobby',
         deck: [], discard: [], hands: null, center: [], scores: [0, 0], refreshVotes: new Set(),
         log: [], round: 0, result: null, winner: null, lastActive: Date.now(),

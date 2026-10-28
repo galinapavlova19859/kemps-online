@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
   <title>Kemps Online</title>
   <link rel="stylesheet" href="/style.css">
 </head>
@@ -95,6 +96,17 @@
         <span id="myName" class="me-name"></span>
         <span id="myBubble" class="bubble hidden"></span>
         <span id="mySignal" class="signal-chip"></span>
+      </div>
+      <div id="breakBox" class="break-box hidden">
+        <div class="break-head">
+          <b>Round over</b>
+          <span id="breakTimer" class="muted"></span>
+        </div>
+        <div id="breakSignal">
+          <div class="muted small">Change your team's secret signal for the next round (only your partner sees this):</div>
+          <div id="breakPicker" class="emote-grid"></div>
+        </div>
+        <button id="readyBtn" class="primary">Ready for next round</button>
       </div>
       <div id="hand" class="hand"></div>
       <div class="controls">

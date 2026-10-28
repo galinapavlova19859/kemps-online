@@ -118,9 +118,16 @@ function renderLobby() {
   for (const s of order) {
     const seat = state.seats[s];
     const mine = s === state.you.seat;
-    const btn = seat.name
-      ? (mine ? el('button', { textContent: 'Leave', onclick: () => act('leaveSeat') }) : null)
-      : el('button', { textContent: 'Sit here', onclick: () => act('takeSeat', { seat: s }) });
+    const host = state.you.isHost;
+    let btn = null;
+    if (mine) btn = el('button', { textContent: 'Leave', onclick: () => act('leaveSeat') });
+    else if (seat.isBot && host) btn = el('button', { textContent: 'Remove bot', onclick: () => act('removeBot', { seat: s }) });
+    else if (!seat.name) {
+      btn = el('div', { class: 'seat-btns' }, [
+        el('button', { textContent: 'Sit here', onclick: () => act('takeSeat', { seat: s }) }),
+        host ? el('button', { textContent: '+ Bot', title: 'Fill this seat with a computer player', onclick: () => act('addBot', { seat: s }) }) : null,
+      ]);
+    }
     list.append(el('div', { class: 'seat-slot', style: `--tc:${teamColor(seat.team)}` }, [
       el('div', {}, [
         el('div', { class: 'label', textContent: `${teamName(seat.team)} · seat ${s + 1}` }),

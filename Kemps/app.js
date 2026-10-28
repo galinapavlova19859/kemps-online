@@ -163,7 +163,8 @@ function renderLobby() {
 function seatPosition(offset, size) {
   // Offset 0 is you (bottom). Others go clockwise around an ellipse.
   const angle = (90 + (offset * 360) / size) * (Math.PI / 180);
-  return { x: 50 + 44 * Math.cos(angle), y: 50 + 40 * Math.sin(angle) };
+  // x reaches 52%: players at the sides sit right out on the table's rim.
+  return { x: 50 + 52 * Math.cos(angle), y: 50 + 40 * Math.sin(angle) };
 }
 
 function ensureSeatEls() {

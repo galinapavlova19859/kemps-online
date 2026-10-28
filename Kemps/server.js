@@ -13,7 +13,8 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 const SUITS = ['♠', '♥', '♦', '♣'];
 const EMOTES = ['👍', '😉', '🤔', '😮', '👋', '🙄', '😎', '🤫', '👀', '😂', '🥱', '✌️'];
-const REVEAL_MS = 4000;
+const REVEAL_MS = 4000; // pause before the game-over screen
+const BREAK_MS = 12000; // between rounds: hands shown, signals can change
 const EMOTE_COOLDOWN_MS = 700;
 const ROOM_IDLE_MS = 1000 * 60 * 60 * 3;
 const BOT_NAMES = ['Ada', 'Bruno', 'Cleo', 'Dex', 'Elsa', 'Finn'];
@@ -117,20 +118,35 @@ function resolveCall(room, result) {
     const last = room.lastEmote[result.target];
     if (last && Date.now() - last.t < 20000) room.knownSignals[teamOf(room, result.target)].add(last.emote);
   }
-  broadcast(room);
-
   clearTimeout(room.revealTimer);
-  room.revealTimer = setTimeout(() => {
-    const winner = room.scores.findIndex((s) => s >= room.target);
-    if (winner >= 0) {
+  const winner = room.scores.findIndex((s) => s >= room.target);
+  if (winner >= 0) {
+    room.breakEndsAt = null;
+    room.revealTimer = setTimeout(() => {
       room.phase = 'over';
       room.winner = winner;
       log(room, `Team ${winner + 1} wins the game!`);
-    } else {
-      dealRound(room);
+      broadcast(room);
+    }, REVEAL_MS);
+  } else {
+    // Break before the next round: anyone may pick a new team signal.
+    room.ready = new Set();
+    room.breakEndsAt = Date.now() + BREAK_MS;
+    for (let t = 0; t < teamCount(room); t++) {
+      const allBots = room.seats.every((pid, s) => teamOf(room, s) !== t || room.players.get(pid).bot);
+      if (allBots && Math.random() < 0.5) room.signals[t] = EMOTES[crypto.randomInt(EMOTES.length)];
     }
-    broadcast(room);
-  }, REVEAL_MS);
+    room.revealTimer = setTimeout(() => nextRound(room), BREAK_MS);
+  }
+  broadcast(room);
+}
+
+function nextRound(room) {
+  if (room.phase !== 'reveal') return;
+  clearTimeout(room.revealTimer);
+  room.breakEndsAt = null;
+  dealRound(room);
+  broadcast(room);
 }
 
 // ---------- per-player view ----------
@@ -158,6 +174,7 @@ function view(room, player) {
         cardCount: room.hands ? room.hands[s].length : 0,
         hand: room.hands && (showAll || s === seat) ? room.hands[s] : null,
         votedRefresh: room.refreshVotes ? room.refreshVotes.has(s) : false,
+        ready: room.phase === 'reveal' && room.ready ? room.ready.has(s) : false,
       };
     }),
     spectators: [...room.players.values()].filter((p) => p.seat == null).map((p) => p.name),
@@ -168,6 +185,8 @@ function view(room, player) {
     scores: room.scores,
     result: room.result,
     winner: room.winner,
+    // Sent as "ms left" so clients with a wrong clock still count down correctly.
+    breakLeftMs: room.phase === 'reveal' && room.breakEndsAt ? Math.max(0, room.breakEndsAt - Date.now()) : null,
     log: room.log.slice(-12),
   };
 }
@@ -338,7 +357,7 @@ const actions = {
   },
 
   setSignal(room, p, { emote }) {
-    if (room.phase !== 'lobby') fail('Signals are locked once the game starts.');
+    if (room.phase !== 'lobby' && room.phase !== 'reveal') fail('You can only change your signal between rounds.');
     if (p.seat == null) fail('Take a seat first.');
     if (!EMOTES.includes(emote)) fail('Unknown signal.');
     room.signals[teamOf(room, p.seat)] = emote;
@@ -393,6 +412,14 @@ const actions = {
     [hand[hi], room.center[ci]] = [room.center[ci], hand[hi]];
     // Any change to the middle cancels a pending refresh vote.
     room.refreshVotes.clear();
+  },
+
+  ready(room, p) {
+    if (room.phase !== 'reveal' || !room.breakEndsAt) fail('Not now.');
+    if (p.seat == null) fail('Spectators cannot do that.');
+    room.ready.add(p.seat);
+    const humansReady = room.seats.every((pid, s) => room.players.get(pid).bot || room.ready.has(s));
+    if (humansReady) nextRound(room);
   },
 
   voteRefresh(room, p) {

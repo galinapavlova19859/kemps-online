@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kemps Online</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <!-- Home: create or join -->
+  <section id="home" class="screen">
+    <div class="panel home-panel">
+      <h1>Kemps</h1>
+      <p class="tag">Collect four of a kind. Signal your partner. Don't get caught.</p>
+      <label>Your name <input id="name" maxlength="16" autocomplete="nickname"></label>
+      <button id="createBtn" class="primary">Create a game</button>
+      <div class="or">or join one</div>
+      <div class="row">
+        <input id="joinCode" maxlength="4" placeholder="CODE" class="code-input">
+        <button id="joinBtn">Join</button>
+      </div>
+      <details class="rules">
+        <summary>How to play</summary>
+        <ul>
+          <li>Teams of two; partners sit opposite each other.</li>
+          <li>Everyone holds 4 cards. There are 4 cards face up in the middle. There are no turns: swap a card from your hand with one in the middle whenever you want.</li>
+          <li>Before the game, each team picks a secret signal emote. Only your team can see which emote is yours.</li>
+          <li>Anyone can send any emote at any time, so you can bluff.</li>
+          <li>When you have four of a kind, send your signal. Your partner then hits <b>KEMPS!</b> for a point. A wrong call gives the point away.</li>
+          <li>Think an opponent has four of a kind? Hit <b>Counter</b> on them. If you're right, your team scores. If you're wrong, theirs does.</li>
+          <li>When the middle goes stale, everyone can vote to refresh it.</li>
+        </ul>
+      </details>
+      <p id="homeError" class="error"></p>
+    </div>
+  </section>
+
+  <!-- Lobby: seats, signal, settings -->
+  <section id="lobby" class="screen hidden">
+    <div class="panel lobby-panel">
+      <div class="lobby-head">
+        <div>
+          <div class="muted">Game code</div>
+          <div id="lobbyCode" class="big-code"></div>
+        </div>
+        <button id="copyLink">Copy invite link</button>
+      </div>
+      <h2>Pick a seat</h2>
+      <p class="muted">Partners sit opposite each other, so seats with the same color are one team.</p>
+      <div id="seatList" class="seat-list"></div>
+      <div id="signalBox" class="hidden">
+        <h2>Your team's secret signal</h2>
+        <p class="muted">Only you and your partner can see this choice.</p>
+        <div id="signalPicker" class="emote-grid"></div>
+      </div>
+      <div id="hostBox" class="hidden">
+        <h2>Settings</h2>
+        <div class="row">
+          <label>Players
+            <select id="sizeSel"><option value="4">4 (2 teams)</option><option value="6">6 (3 teams)</option></select>
+          </label>
+          <label>Points to win <input id="targetInput" type="number" min="1" max="50"></label>
+        </div>
+        <button id="startBtn" class="primary">Start game</button>
+      </div>
+      <p id="waitHost" class="muted hidden">Waiting for the host to start…</p>
+      <p id="spectators" class="muted"></p>
+      <p id="lobbyError" class="error"></p>
+    </div>
+  </section>
+
+  <!-- Game table -->
+  <section id="game" class="screen hidden">
+    <header class="topbar">
+      <div id="scoreboard" class="scoreboard"></div>
+      <div class="muted small">Code <b id="gameCode"></b> · first to <b id="gameTarget"></b></div>
+    </header>
+
+    <div class="table-wrap">
+      <div id="table" class="table">
+        <div id="seats"></div>
+        <div class="middle">
+          <div id="center" class="center-cards"></div>
+          <div class="middle-info">
+            <span id="deckCount" class="muted small"></span>
+            <button id="refreshBtn" class="small-btn">Vote refresh</button>
+          </div>
+        </div>
+        <div id="banner" class="banner hidden"></div>
+      </div>
+    </div>
+
+    <div class="me">
+      <div class="me-head">
+        <span id="myName" class="me-name"></span>
+        <span id="myBubble" class="bubble hidden"></span>
+        <span id="mySignal" class="signal-chip"></span>
+      </div>
+      <div id="breakBox" class="break-box hidden">
+        <div class="break-head">
+          <b>Round over</b>
+          <span id="breakTimer" class="muted"></span>
+        </div>
+        <div id="breakSignal">
+          <div class="muted small">Change your team's secret signal for the next round (only your partner sees this):</div>
+          <div id="breakPicker" class="emote-grid"></div>
+        </div>
+        <button id="readyBtn" class="primary">Ready for next round</button>
+      </div>
+      <div id="hand" class="hand"></div>
+      <div class="controls">
+        <div id="emoteBar" class="emote-bar"></div>
+        <button id="kempsBtn" class="kemps-btn">KEMPS!</button>
+      </div>
+      <p id="hint" class="muted small hint"></p>
+    </div>
+
+    <aside class="log-wrap">
+      <div id="log" class="log"></div>
+    </aside>
+
+    <div id="overBox" class="overlay hidden">
+      <div class="panel">
+        <h2 id="overTitle"></h2>
+        <div id="overScores"></div>
+        <button id="againBtn" class="primary hidden">Play again</button>
+        <button id="lobbyBtn" class="hidden">Back to lobby</button>
+        <p id="overWait" class="muted hidden">Waiting for the host…</p>
+      </div>
+    </div>
+  </section>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

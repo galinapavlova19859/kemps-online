@@ -121,6 +121,11 @@ label { display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; colo
 .emote-bar button.mine { border-color: var(--accent); }
 .kemps-btn { width: 100%; background: var(--accent); color: #1a1a1a; font-weight: 900; font-size: 2rem; padding: 18px 26px; border: none; border-radius: var(--radius); letter-spacing: 6px; box-shadow: 0 4px 0 #b8901f; }
 .kemps-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 #b8901f; }
+.break-box { background: var(--panel-2); border: 2px solid var(--accent); border-radius: var(--radius); padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px; }
+.break-head { display: flex; justify-content: space-between; align-items: center; }
+.break-box .emote-grid { grid-template-columns: repeat(12, 1fr); }
+.break-box .emote-grid button { font-size: 1.3rem; padding: 4px; }
+@media (max-width: 820px) { .break-box .emote-grid { grid-template-columns: repeat(6, 1fr); } }
 .hint { text-align: center; margin: 8px 0 0; min-height: 1.2em; }
 
 .bubble { font-size: 1.6rem; background: #fff; border-radius: 50%; width: 42px; height: 42px; display: grid; place-items: center; box-shadow: 0 3px 10px #0008; animation: pop 2.2s forwards; z-index: 3; }

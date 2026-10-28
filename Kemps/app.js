@@ -266,6 +266,23 @@ function renderGame() {
     iHaveKemps ? `You have four ${myHand[0].rank}s! Send your signal ${state.mySignal} so your partner calls KEMPS.` :
     'Click one of your cards, then a card in the middle, to swap them. Keyboard: 1–4 picks a card in your hand, Q W E R picks one in the middle, K calls KEMPS.';
 
+  // between rounds: change signal, get ready
+  const inBreak = state.breakLeftMs != null;
+  $('#breakBox').classList.toggle('hidden', !inBreak || me.seat == null);
+  if (inBreak) {
+    breakDeadline = Date.now() + state.breakLeftMs;
+    tickBreak();
+    const picker = $('#breakPicker');
+    picker.innerHTML = '';
+    for (const e of state.emotes) {
+      picker.append(el('button', { textContent: e, class: e === state.mySignal ? 'selected' : '', onclick: () => act('setSignal', { emote: e }) }));
+    }
+    const iAmReady = me.seat != null && state.seats[me.seat].ready;
+    const waiting = state.seats.filter((s) => !s.isBot && !s.ready).length;
+    $('#readyBtn').disabled = iAmReady;
+    $('#readyBtn').textContent = iAmReady ? `Waiting for ${waiting} more…` : 'Ready for next round';
+  } else breakDeadline = null;
+
   // result banner
   const banner = $('#banner');
   if (state.phase === 'reveal' && state.result) {
@@ -290,6 +307,14 @@ function renderGame() {
     $('#overWait').classList.toggle('hidden', me.isHost);
   }
 }
+
+let breakDeadline = null;
+function tickBreak() {
+  if (!breakDeadline) return;
+  const secs = Math.max(0, Math.ceil((breakDeadline - Date.now()) / 1000));
+  $('#breakTimer').textContent = `Next round in ${secs}s`;
+}
+setInterval(tickBreak, 250);
 
 // ---------- interactions ----------
 
@@ -380,6 +405,7 @@ $('#targetInput').onchange = (e) => act('settings', { target: +e.target.value })
 $('#startBtn').onclick = () => act('start');
 $('#kempsBtn').onclick = () => act('kemps');
 $('#refreshBtn').onclick = () => act('voteRefresh');
+$('#readyBtn').onclick = () => act('ready');
 $('#againBtn').onclick = () => act('start');
 $('#lobbyBtn').onclick = () => act('backToLobby');
 

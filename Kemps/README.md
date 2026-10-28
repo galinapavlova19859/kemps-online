@@ -33,3 +33,4 @@ Games are kept in memory, so a server restart ends any game in progress.
 - **Counter!** on an opponent checks their hand. If they have four of a kind, your team scores. If they don't, their team scores.
 - After every call, all hands are revealed for a few seconds and a new round is dealt.
 - When the middle goes stale, every player can vote to refresh it. All players must agree.
+- The host can fill empty seats with **bots** (the **+ Bot** button in the lobby). Bots collect four of a kind and send their team's signal when they have it. They call KEMPS when their partner (bot or human) sends that team's signal, and bluff with other emotes now and then. They also remember emotes that came right before a correct call, and use that to call Counter. A bot calls KEMPS whenever you send your team's signal, so only send it when you really have four of a kind.

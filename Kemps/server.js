@@ -16,6 +16,7 @@ const EMOTES = ['👍', '😉', '🤔', '😮', '👋', '🙄', '😎', '🤫', 
 const REVEAL_MS = 4000;
 const EMOTE_COOLDOWN_MS = 700;
 const ROOM_IDLE_MS = 1000 * 60 * 60 * 3;
+const BOT_NAMES = ['Ada', 'Bruno', 'Cleo', 'Dex', 'Elsa', 'Finn'];
 
 const rooms = new Map(); // code -> room
 
@@ -89,6 +90,7 @@ function dealRound(room) {
   room.phase = 'playing';
   room.result = null;
   room.round += 1;
+  for (const b of bots(room)) { b.stuckSince = 0; b.signalledAt = 0; b.nextAct = Date.now() + rand(1500, 3000); }
 }
 
 function startGame(room) {
@@ -98,6 +100,8 @@ function startGame(room) {
   }
   room.round = 0;
   room.winner = null;
+  room.knownSignals = Array.from({ length: teamCount(room) }, () => new Set());
+  room.lastEmote = [];
   log(room, 'Game started. First team to ' + room.target + ' wins!');
   dealRound(room);
 }
@@ -108,6 +112,11 @@ function resolveCall(room, result) {
   room.result = result;
   room.scores[result.scoringTeam] += result.points;
   log(room, result.message);
+  // Bots learn: whatever the caught/winning player emoted just before was probably their team's signal.
+  if (result.correct) {
+    const last = room.lastEmote[result.target];
+    if (last && Date.now() - last.t < 20000) room.knownSignals[teamOf(room, result.target)].add(last.emote);
+  }
   broadcast(room);
 
   clearTimeout(room.revealTimer);
@@ -145,6 +154,7 @@ function view(room, player) {
         name: p ? p.name : null,
         connected: p ? p.connected : false,
         isHost: p ? room.hostId === p.id : false,
+        isBot: p ? !!p.bot : false,
         cardCount: room.hands ? room.hands[s].length : 0,
         hand: room.hands && (showAll || s === seat) ? room.hands[s] : null,
         votedRefresh: room.refreshVotes ? room.refreshVotes.has(s) : false,
@@ -179,6 +189,107 @@ function broadcastEvent(room, event, data) {
   for (const p of room.players.values()) for (const res of p.streams) send(res, event, data);
 }
 
+function sendEmote(room, seat, emote) {
+  room.lastEmote[seat] = { emote, t: Date.now() };
+  broadcastEvent(room, 'emote', { seat, emote, key: id(4) });
+  botsHearEmote(room, seat, emote);
+}
+
+// ---------- bots ----------
+
+const rand = (min, max) => min + Math.random() * (max - min);
+const bots = (room) => [...room.players.values()].filter((p) => p.bot && p.seat != null);
+
+// Higher is closer to four of a kind: sum of squared rank counts.
+function handScore(hand) {
+  const counts = {};
+  for (const c of hand) counts[c.rank] = (counts[c.rank] || 0) + 1;
+  return Object.values(counts).reduce((s, n) => s + n * n, 0);
+}
+
+// Run a bot action later, but only if the same round is still being played.
+function botLater(room, ms, fn) {
+  const round = room.round;
+  setTimeout(() => {
+    if (room.phase !== 'playing' || room.round !== round) return;
+    try { fn(); } catch (err) { if (!(err instanceof GameError)) console.error(err); }
+  }, ms);
+}
+
+function botAct(room, b) {
+  const now = Date.now();
+  const team = teamOf(room, b.seat);
+  const hand = room.hands[b.seat];
+
+  if (isKemps(hand)) {
+    // Signal the partner, and repeat now and then in case they missed it.
+    if (!b.signalledAt || now - b.signalledAt > 5000) {
+      b.signalledAt = now;
+      sendEmote(room, b.seat, room.signals[team]);
+    }
+    return;
+  }
+  b.signalledAt = 0;
+
+  // Throw in the odd bluff emote, never our real signal.
+  if (Math.random() < 0.05) {
+    const fakes = EMOTES.filter((e) => e !== room.signals[team]);
+    sendEmote(room, b.seat, fakes[crypto.randomInt(fakes.length)]);
+  }
+
+  let best = null;
+  const current = handScore(hand);
+  for (let hi = 0; hi < hand.length; hi++) {
+    for (let ci = 0; ci < room.center.length; ci++) {
+      const trial = hand.slice();
+      trial[hi] = room.center[ci];
+      const score = handScore(trial);
+      if (score > current && (!best || score > best.score)) best = { score, hi, ci };
+    }
+  }
+
+  if (best) {
+    b.stuckSince = 0;
+    actions.swap(room, b, { handCard: hand[best.hi].id, centerCard: room.center[best.ci].id });
+    broadcast(room);
+  } else {
+    b.stuckSince = b.stuckSince || now;
+    if (now - b.stuckSince > 6000 && !room.refreshVotes.has(b.seat)) {
+      actions.voteRefresh(room, b);
+      broadcast(room);
+    }
+  }
+}
+
+function botsHearEmote(room, seat, emote) {
+  if (room.phase !== 'playing') return;
+  const senderTeam = teamOf(room, seat);
+  for (const b of bots(room)) {
+    if (b.seat === seat) continue;
+    const team = teamOf(room, b.seat);
+    if (seat === partnerOf(room, b.seat) && emote === room.signals[team]) {
+      botLater(room, rand(600, 1600), () => actions.kemps(room, b));
+    } else if (senderTeam !== team) {
+      const known = room.knownSignals[senderTeam].has(emote);
+      if (Math.random() < (known ? 0.6 : 0.03)) {
+        botLater(room, rand(900, 2500), () => actions.counter(room, b, { seat }));
+      }
+    }
+  }
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const room of rooms.values()) {
+    if (room.phase !== 'playing') continue;
+    for (const b of bots(room)) {
+      if (now < (b.nextAct || 0)) continue;
+      b.nextAct = now + rand(1000, 2400);
+      try { botAct(room, b); } catch (err) { if (!(err instanceof GameError)) console.error(err); }
+    }
+  }
+}, 250);
+
 // ---------- actions ----------
 
 class GameError extends Error {}
@@ -192,6 +303,27 @@ const actions = {
     if (p.seat != null) room.seats[p.seat] = null;
     room.seats[seat] = p.id;
     p.seat = seat;
+  },
+
+  addBot(room, p, { seat }) {
+    if (room.hostId !== p.id) fail('Only the host can add bots.');
+    if (room.phase !== 'lobby') fail('The game has already started.');
+    if (!Number.isInteger(seat) || seat < 0 || seat >= room.size) fail('No such seat.');
+    if (room.seats[seat]) fail('That seat is taken.');
+    const used = [...room.players.values()].filter((pl) => pl.bot).map((pl) => pl.baseName);
+    const baseName = BOT_NAMES.find((n) => !used.includes(n)) || 'Bot';
+    const bot = { id: id(8), token: null, bot: true, baseName, name: baseName + ' 🤖', seat, connected: true, streams: new Set() };
+    room.players.set(bot.id, bot);
+    room.seats[seat] = bot.id;
+  },
+
+  removeBot(room, p, { seat }) {
+    if (room.hostId !== p.id) fail('Only the host can remove bots.');
+    if (room.phase !== 'lobby') fail('The game has already started.');
+    const bot = playerAt(room, seat);
+    if (!bot || !bot.bot) fail('No bot in that seat.');
+    room.players.delete(bot.id);
+    room.seats[seat] = null;
   },
 
   leaveSeat(room, p) {
@@ -214,7 +346,10 @@ const actions = {
       if (size !== 4 && size !== 6) fail('Play with 4 or 6 players.');
       if (size !== room.size) {
         // Re-seat everyone as spectators when the table changes shape.
-        for (const pl of room.players.values()) pl.seat = null;
+        for (const pl of room.players.values()) {
+          if (pl.bot) room.players.delete(pl.id);
+          else pl.seat = null;
+        }
         room.size = size;
         room.seats = Array(size).fill(null);
         room.signals = Array(size / 2).fill(null);
@@ -274,7 +409,7 @@ const actions = {
     const now = Date.now();
     if (now - (p.lastEmote || 0) < EMOTE_COOLDOWN_MS) return { silent: true };
     p.lastEmote = now;
-    broadcastEvent(room, 'emote', { seat: p.seat, emote, key: id(4) });
+    sendEmote(room, p.seat, emote);
     return { silent: true };
   },
 
@@ -351,6 +486,7 @@ function addPlayer(room, name) {
 }
 
 function findByToken(room, token) {
+  if (!token) return null; // bots have no token
   for (const p of room.players.values()) if (p.token === token) return p;
   return null;
 }
@@ -384,6 +520,7 @@ const server = http.createServer(async (req, res) => {
         seats: Array(4).fill(null), signals: Array(2).fill(null), phase: 'lobby',
         deck: [], discard: [], hands: null, center: [], scores: [0, 0], refreshVotes: new Set(),
         log: [], round: 0, result: null, winner: null, lastActive: Date.now(),
+        lastEmote: [], knownSignals: [],
       };
       const p = addPlayer(room, name);
       rooms.set(room.code, room);
